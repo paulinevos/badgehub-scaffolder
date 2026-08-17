@@ -3,6 +3,7 @@ pub mod catalogue;
 pub mod cli;
 pub mod existing_project;
 pub mod github;
+pub mod icon;
 pub mod json_document;
 pub mod license;
 pub mod manifest;
