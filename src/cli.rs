@@ -8,6 +8,7 @@ use clap::{Args, Parser, Subcommand};
 use crate::answers::{NewProject, ProjectType, Text};
 use crate::catalogue::{Catalogue, Choices};
 use crate::existing_project::ExistingProject;
+use crate::gitignore::Added;
 use crate::release_action::what_is_left_to_do;
 use crate::repository::RepositoryOptions;
 use crate::scaffold::{Scaffold, refuse_unless_empty};
@@ -35,6 +36,8 @@ enum Command {
     New(NewOptions),
     /// Change the name, author or description of a project
     Set(SetOptions),
+    /// Bundle the app into an .mpk, the archive MicroPythonOS installs
+    Bundle(BundleOptions),
     /// Add the BadgeHub release workflow to an existing project
     ReleaseAction(ReleaseActionOptions),
     /// Set the defaults every new project starts from
@@ -46,6 +49,7 @@ impl Cli {
         match self.command {
             Command::New(options) => scaffold(options, wizard),
             Command::Set(options) => amend(options, wizard),
+            Command::Bundle(options) => bundle(options),
             Command::ReleaseAction(options) => add_release_workflow(options),
             Command::Config => configure(wizard),
         }
@@ -56,6 +60,16 @@ impl Cli {
 pub struct SetOptions {
     #[command(flatten)]
     changes: Changes,
+}
+
+#[derive(Args)]
+pub struct BundleOptions {
+    /// The project to bundle; defaults to looking in the current directory
+    #[arg(long)]
+    app_directory: Option<PathBuf>,
+    /// Where to write the .mpk; defaults to the project root
+    #[arg(long)]
+    output_directory: Option<PathBuf>,
 }
 
 #[derive(Args)]
@@ -202,6 +216,16 @@ fn made_ready(given: Option<PathBuf>) -> Result<PathBuf> {
 fn amend(options: SetOptions, wizard: &Wizard) -> Result<()> {
     let project = found(None)?;
     set::apply(options.changes, &project, wizard)
+}
+
+fn bundle(options: BundleOptions) -> Result<()> {
+    let project = found(options.app_directory)?;
+    let (written, ignored) = project.bundle_into(options.output_directory)?;
+    println!("Built {}", written.display());
+    if ignored == Added::Yes {
+        println!("Added *.mpk to .gitignore.");
+    }
+    Ok(())
 }
 
 fn add_release_workflow(options: ReleaseActionOptions) -> Result<()> {

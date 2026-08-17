@@ -98,6 +98,27 @@ Nothing else is editable here. The slug is the directory name, the manifest's
 the git tag; and the licence is a file to edit as much as a field to set, so
 `license_type` and `LICENSE` are yours to change together.
 
+### Bundling the app
+
+```shell
+bh bundle
+```
+
+Packs the app directory into `<fullname>_<version>.mpk`, the archive
+MicroPythonOS installs: a stored ZIP holding exactly one top-level directory
+named for the slug, per
+[the MicroPythonOS bundling docs](https://docs.micropythonos.com/apps/bundling-apps/).
+The version comes from `MANIFEST.JSON`.
+
+It lands in the project root by default, or wherever `--output-directory` says,
+and `*.mpk` is added to `.gitignore` if it is not already there — a build
+artefact belongs beside the source, not in the history.
+
+The bundle is deterministic: entries sorted by path, stored rather than
+deflated, and every timestamp fixed. The same source gives the same bytes on any
+machine, so what you build locally is what a release publishes. `__pycache__`,
+`.DS_Store` and any earlier `.mpk` are left out.
+
 ### Setting up GitHub release workflow on an existing project
 
 ```shell

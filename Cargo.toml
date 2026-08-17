@@ -1,6 +1,6 @@
 [package]
 name = "badgehub"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 description = "Scaffold and manage BadgeHub apps for event badges"
 homepage = "https://badgehub.eu"
@@ -35,6 +35,7 @@ serde_json = { version = "1.0.151", features = ["preserve_order"] }
 # So the wordmark can be skipped rather than wrapped on a narrow terminal.
 terminal_size = "0.4.4"
 ureq = "3.4.0"
+zip = { version = "8.6", default-features = false }
 
 [dev-dependencies]
 assert_cmd = "2.2.2"

@@ -1,7 +1,7 @@
 //! `bh set` and `bh release-action`, run as the binary against a project this
 //! tool scaffolded a moment earlier.
 
-use std::fs::{read_to_string, write};
+use std::fs::{read, read_to_string, write};
 use std::path::{Path, PathBuf};
 use std::process::Output;
 
@@ -283,4 +283,129 @@ fn forcing_replaces_the_workflow() {
             .unwrap()
             .contains("app-directory")
     );
+}
+
+#[test]
+fn bundling_writes_an_mpk_named_for_the_manifest() {
+    let project = Scaffolded::new(&[]);
+
+    let outcome = project.run(&["bundle"]);
+
+    assert!(outcome.status.success(), "{}", complaint(&outcome));
+    assert!(project.root().join(format!("{SLUG}_0.1.0.mpk")).is_file());
+}
+
+#[test]
+fn the_bundle_holds_one_top_level_directory_named_for_the_slug() {
+    let project = Scaffolded::new(&[]);
+
+    project.run(&["bundle"]);
+
+    let names = names_in(&project.root().join(format!("{SLUG}_0.1.0.mpk")));
+    assert_eq!(format!("{SLUG}/"), names[0]);
+    assert!(
+        names
+            .iter()
+            .all(|name| name.starts_with(&format!("{SLUG}/"))),
+        "{names:?}"
+    );
+}
+
+#[test]
+fn the_bundle_carries_what_the_badge_needs() {
+    let project = Scaffolded::new(&[]);
+
+    project.run(&["bundle"]);
+
+    let names = names_in(&project.root().join(format!("{SLUG}_0.1.0.mpk")));
+    for wanted in ["MANIFEST.JSON", "metadata.json", "__init__.py"] {
+        assert!(names.contains(&format!("{SLUG}/{wanted}")), "{names:?}");
+    }
+}
+
+#[test]
+fn bundling_twice_gives_the_same_bytes() {
+    let project = Scaffolded::new(&[]);
+    let archive = project.root().join(format!("{SLUG}_0.1.0.mpk"));
+
+    project.run(&["bundle"]);
+    let once = read(&archive).unwrap();
+    project.run(&["bundle"]);
+
+    assert_eq!(once, read(&archive).unwrap());
+}
+
+#[test]
+fn a_new_version_gets_a_new_file_name() {
+    let project = Scaffolded::new(&[]);
+    let manifest = project.root().join(SLUG).join("MANIFEST.JSON");
+    let bumped = read_to_string(&manifest).unwrap().replace("0.1.0", "2.0.0");
+    write(&manifest, bumped).unwrap();
+
+    project.run(&["bundle"]);
+
+    assert!(project.root().join(format!("{SLUG}_2.0.0.mpk")).is_file());
+}
+
+#[test]
+fn an_output_directory_can_be_named() {
+    let project = Scaffolded::new(&[]);
+    let elsewhere = TempDir::new().unwrap();
+
+    let outcome = project.run(&[
+        "bundle",
+        "--output-directory",
+        elsewhere.path().to_str().unwrap(),
+    ]);
+
+    assert!(outcome.status.success(), "{}", complaint(&outcome));
+    assert!(elsewhere.path().join(format!("{SLUG}_0.1.0.mpk")).is_file());
+}
+
+#[test]
+fn a_scaffolded_project_already_ignores_the_mpk_and_is_not_told_again() {
+    let project = Scaffolded::new(&[]);
+
+    let outcome = project.run(&["bundle"]);
+
+    assert!(
+        !spoken(&outcome).contains(".gitignore"),
+        "{}",
+        spoken(&outcome)
+    );
+}
+
+#[test]
+fn a_project_whose_gitignore_forgot_the_mpk_has_it_added() {
+    let project = Scaffolded::new(&[]);
+    write(project.root().join(".gitignore"), "__pycache__/\n").unwrap();
+
+    let outcome = project.run(&["bundle"]);
+
+    assert!(
+        spoken(&outcome).contains("Added *.mpk"),
+        "{}",
+        spoken(&outcome)
+    );
+    let ignored = read_to_string(project.root().join(".gitignore")).unwrap();
+    assert_eq!("__pycache__/\n*.mpk\n", ignored);
+}
+
+#[test]
+fn bundling_outside_a_project_says_there_is_nothing_here() {
+    let project = Scaffolded::new(&[]);
+    let empty = TempDir::new().unwrap();
+
+    let outcome = project.run_in(empty.path(), &["bundle"]);
+
+    assert!(!outcome.status.success());
+    assert!(complaint(&outcome).contains("no BadgeHub project"));
+}
+
+fn names_in(archive: &std::path::Path) -> Vec<String> {
+    let reader = std::fs::File::open(archive).unwrap();
+    let mut zip = zip::ZipArchive::new(reader).unwrap();
+    (0..zip.len())
+        .map(|index| zip.by_index(index).unwrap().name().to_owned())
+        .collect()
 }

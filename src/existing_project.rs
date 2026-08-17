@@ -3,7 +3,9 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 
+use crate::gitignore::{Added, Gitignore};
 use crate::json_document::JsonDocument;
+use crate::mpk::Mpk;
 use crate::release_action::ReleaseWorkflow;
 use crate::slug::Slug;
 
@@ -72,6 +74,15 @@ impl ExistingProject {
 
     pub fn manifest(&self) -> Result<JsonDocument> {
         JsonDocument::read(&self.app_directory.join(MANIFEST))
+    }
+
+    /// Built beside the app directory by default, and kept out of the
+    /// repository: an .mpk is an artefact of the source next to it.
+    pub fn bundle_into(&self, output_directory: Option<PathBuf>) -> Result<(PathBuf, Added)> {
+        let mpk = Mpk::of(&self.app_directory, &self.manifest()?)?;
+        let directory = output_directory.unwrap_or_else(|| self.root.clone());
+        let written = mpk.write_into(&directory)?;
+        Ok((written, Gitignore::at(&self.root).ensure("*.mpk")?))
     }
 
     pub fn add_release_workflow(&self, force: bool) -> Result<PathBuf> {
