@@ -103,7 +103,8 @@ installs. The version comes from `MANIFEST.JSON`. `*.mpk` is added to
 | Flag | Meaning |
 | --- | --- |
 | `--app-directory` | The project to bundle; defaults to looking in the current directory |
-| `--output-directory` | Where to write the `.mpk`; defaults to the project root |
+| `--output-directory` | Where to write the `.mpk`; defaults to the project root, created if missing |
+| `--no-gitignore` | Leave `.gitignore` alone; for CI |
 
 ### Setting up GitHub release workflow on an existing project
 
