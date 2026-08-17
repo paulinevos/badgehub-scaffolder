@@ -113,7 +113,6 @@ jobs:
           class Badgehub < Formula
             desc "Scaffold and manage BadgeHub apps for event badges"
             homepage "https://github.com/paulinevos/badgehub-scaffolder"
-            version "${version}"
             license "MIT"
 
             on_macos do

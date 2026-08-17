@@ -1,7 +1,6 @@
 class Badgehub < Formula
   desc "Scaffold and manage BadgeHub apps for event badges"
   homepage "https://github.com/paulinevos/badgehub-scaffolder"
-  version "0.1.0"
   license "MIT"
 
   # Every sha256 below is a placeholder. The release workflow overwrites this
