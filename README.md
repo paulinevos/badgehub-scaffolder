@@ -78,10 +78,9 @@ write`.
 bh set --name "ROM Installer" --author "Pauline Vos"
 ```
 
-Sets fields in `metadata.json` and `MANIFEST.JSON` to new values, under whichever
-name each file uses — an author is `author` in one and `publisher` in the other.
-Anything else in those files is left where it is, including fields this tool
-knows nothing about.
+Sets fields in `metadata.json` and `MANIFEST.JSON`. Run it from the project root
+or from inside the app directory. Passing no flags walks the fields with their
+current values prefilled.
 
 | Flag | Meaning                                            |
 | --- |----------------------------------------------------|
@@ -89,14 +88,7 @@ knows nothing about.
 | `--author` | Author name                                        |
 | `--description` | One-line description                               |
 
-Run it from the project root or from inside the app directory. Passing no flags
-walks the fields with their current values prefilled.
-
-Nothing else is editable here. The slug is the directory name, the manifest's
-`fullname`, the BadgeHub project identity and the release workflow's
-`app-directory` all at once; the version is written by the release action from
-the git tag; and the licence is a file to edit as much as a field to set, so
-`license_type` and `LICENSE` are yours to change together.
+The slug, the version and the licence are not editable here.
 
 ### Bundling the app
 
@@ -104,20 +96,14 @@ the git tag; and the licence is a file to edit as much as a field to set, so
 bh bundle
 ```
 
-Packs the app directory into `<fullname>_<version>.mpk`, the archive
-MicroPythonOS installs: a stored ZIP holding exactly one top-level directory
-named for the slug, per
-[the MicroPythonOS bundling docs](https://docs.micropythonos.com/apps/bundling-apps/).
-The version comes from `MANIFEST.JSON`.
+Packs the app into `<fullname>_<version>.mpk`, the archive MicroPythonOS
+installs. The version comes from `MANIFEST.JSON`. `*.mpk` is added to
+`.gitignore` if it is not there yet.
 
-It lands in the project root by default, or wherever `--output-directory` says,
-and `*.mpk` is added to `.gitignore` if it is not already there — a build
-artefact belongs beside the source, not in the history.
-
-The bundle is deterministic: entries sorted by path, stored rather than
-deflated, and every timestamp fixed. The same source gives the same bytes on any
-machine, so what you build locally is what a release publishes. `__pycache__`,
-`.DS_Store` and any earlier `.mpk` are left out.
+| Flag | Meaning |
+| --- | --- |
+| `--app-directory` | The project to bundle; defaults to looking in the current directory |
+| `--output-directory` | Where to write the `.mpk`; defaults to the project root |
 
 ### Setting up GitHub release workflow on an existing project
 
@@ -125,13 +111,15 @@ machine, so what you build locally is what a release publishes. `__pycache__`,
 bh release-action
 ```
 
-Writes `.github/workflows/release.yml` into a project that already exists, so
-publishing a GitHub release builds the `.mpk` and pushes it to BadgeHub through
+Writes `.github/workflows/release.yml`, so publishing a GitHub release builds the
+`.mpk` and pushes it to BadgeHub through
 [badgehub-release-action](https://github.com/paulinevos/badgehub-release-action).
-An existing workflow is never replaced without `--force`, and `--app-directory`
-names a project other than the one you are standing in. Afterwards it prints the
-`gh secret set BADGEHUB_API_TOKEN` line still to run; without that secret the
-workflow still builds on every release and warns instead of publishing.
+Publishing needs a `BADGEHUB_API_TOKEN` secret on the repository.
+
+| Flag | Meaning |
+| --- | --- |
+| `--app-directory` | The project to add the workflow to; defaults to the current directory |
+| `--force` | Replace an existing workflow |
 
 ### Configuring user defaults
 
@@ -139,9 +127,8 @@ workflow still builds on every release and warns instead of publishing.
 bh config
 ```
 
-Edits the per-user defaults every new project starts from — author, licence and
-GitHub token — kept in `~/.config/badgehub/config.json`. The file is written
-readable only by you, since it may hold a token.
+Sets the author, licence and GitHub token that new projects start from, kept in
+`~/.config/badgehub/config.json`.
 
 ## Environment variables
 
