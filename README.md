@@ -41,6 +41,8 @@ The scaffolder will prompt you for the necessary information to create the proje
 └── nl.paulinevos.some-app/         the app directory, named for the slug
     ├── metadata.json               the BadgeHub store listing
     ├── MANIFEST.JSON               the MicroPythonOS launcher manifest
+    ├── icon-32x32.png              placeholder icon, generated from the slug
+    ├── icon-64x64.png              placeholder icon, generated from the slug
     └── __init__.py
 ```
 

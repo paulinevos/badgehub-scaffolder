@@ -6,6 +6,7 @@ use anyhow::{Context, Result, bail};
 use serde::Serialize;
 
 use crate::answers::NewProject;
+use crate::icon::PlaceholderIcon;
 use crate::license::LicenseFile;
 use crate::manifest::Manifest;
 use crate::metadata::Metadata;
@@ -85,7 +86,8 @@ impl Scaffold {
         self.put(
             self.app_directory.join(NewProject::entrypoint()),
             &entrypoint_source(project),
-        )
+        )?;
+        PlaceholderIcon::for_slug(&project.slug).write_into(&self.app_directory)
     }
 
     fn put_json(&self, path: PathBuf, content: &impl Serialize) -> Result<()> {

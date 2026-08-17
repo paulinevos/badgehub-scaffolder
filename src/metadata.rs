@@ -1,6 +1,7 @@
 use serde::Serialize;
 
 use crate::answers::NewProject;
+use crate::icon::IconMap;
 use crate::json_document::JsonDocument;
 use crate::repository_url::RepositoryUrl;
 use crate::set::Changes;
@@ -19,6 +20,7 @@ pub struct Metadata {
     categories: Vec<String>,
     badges: Vec<String>,
     application: Vec<Variant>,
+    icon_map: IconMap,
     #[serde(skip_serializing_if = "Option::is_none")]
     git_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -48,6 +50,7 @@ impl Metadata {
                 runtime: "micropython".to_owned(),
                 executable: NewProject::entrypoint().to_owned(),
             }],
+            icon_map: IconMap::of_placeholders(),
             git_url: project.git_url.as_ref().map(RepositoryUrl::to_string),
             license_type: project.license_type.clone(),
             license_file: project.license_type.as_ref().map(|_| "LICENSE".to_owned()),

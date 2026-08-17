@@ -94,7 +94,9 @@ impl NewProject {
              ## Layout\n\n\
              Everything published to BadgeHub lives in `{slug}/`. \
              `metadata.json` is the BadgeHub store listing; `MANIFEST.JSON` is \
-             the MicroPythonOS launcher manifest.\n\n\
+             the MicroPythonOS launcher manifest. The `icon-*.png` files are \
+             placeholders generated from the slug — replace them before you \
+             publish.\n\n\
              ## Publishing\n\n\
              Create the project and generate an API token at \
              <https://badgehub.eu>, then upload the contents of `{slug}/` to \

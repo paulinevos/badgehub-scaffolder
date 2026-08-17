@@ -2,7 +2,8 @@
 //! mock, and every run gets its own config and working directory, so nothing
 //! here touches the real BadgeHub, GitHub, or the machine's own config.
 
-use std::fs::{create_dir_all, read_to_string, write};
+use std::fs::{File, create_dir_all, read, read_to_string, write};
+use std::io::BufReader;
 use std::path::{Path, PathBuf};
 use std::process::Output;
 
@@ -626,4 +627,67 @@ fn a_named_directory_that_is_not_empty_is_refused_too() {
         "{}",
         complaint(&outcome)
     );
+}
+
+#[test]
+fn the_app_directory_gets_placeholder_icons_the_listing_points_at() {
+    let run = Run::new();
+
+    run.scaffold(&[]);
+
+    let metadata = run.metadata();
+    for size in ["32x32", "64x64"] {
+        let named = metadata["icon_map"][size].as_str().unwrap();
+        assert!(run.app().join(named).exists(), "{named} is missing");
+    }
+}
+
+#[test]
+fn a_scaffolded_icon_is_a_real_png_of_the_size_it_is_filed_under() {
+    let run = Run::new();
+
+    run.scaffold(&[]);
+
+    let metadata = run.metadata();
+    for (size, edge) in [("32x32", 32), ("64x64", 64)] {
+        let named = metadata["icon_map"][size].as_str().unwrap();
+        let file = BufReader::new(File::open(run.app().join(named)).unwrap());
+        let decoded = png::Decoder::new(file).read_info().unwrap();
+        assert_eq!(edge, decoded.info().width);
+        assert_eq!(edge, decoded.info().height);
+    }
+}
+
+/// Two people scaffolding the same slug should get byte-identical icons, and
+/// two slugs should not come out looking alike.
+#[test]
+fn the_icon_follows_from_the_slug_alone() {
+    assert_eq!(icon_scaffolded_for(SLUG), icon_scaffolded_for(SLUG));
+    assert_ne!(
+        icon_scaffolded_for(SLUG),
+        icon_scaffolded_for("nl.paulinevos.agenda")
+    );
+}
+
+fn icon_scaffolded_for(slug: &str) -> Vec<u8> {
+    let run = Run::new();
+    let outcome = run.run(&[
+        "new",
+        "--slug",
+        slug,
+        "--name",
+        "HW Test",
+        "--description",
+        "Checks the badge",
+        "--author",
+        "Pauline",
+        "--project-type",
+        "app",
+        "--category",
+        "Utility",
+        "--badge",
+        "fri3d_2026",
+    ]);
+    assert!(outcome.status.success(), "{}", complaint(&outcome));
+    read(run.root().join(slug).join("icon-64x64.png")).unwrap()
 }
