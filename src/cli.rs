@@ -173,6 +173,7 @@ impl NewOptions {
 }
 
 fn scaffold(mut options: NewOptions, wizard: &Wizard) -> Result<()> {
+    wizard.greet_with("BadgeHub");
     let settings = Settings::of_this_user()?;
     // Settled before a single question is asked, so a directory that cannot be
     // scaffolded into is not discovered at the end of a wizard.

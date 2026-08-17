@@ -1,4 +1,5 @@
 pub mod answers;
+pub mod banner;
 pub mod catalogue;
 pub mod cli;
 pub mod existing_project;

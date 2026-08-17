@@ -117,6 +117,7 @@ dependencies = [
  "anyhow",
  "assert_cmd",
  "clap",
+ "figleter",
  "inquire",
  "mockito",
  "predicates",
@@ -124,6 +125,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+ "terminal_size",
  "ureq",
 ]
 
@@ -336,6 +338,12 @@ name = "fastrand"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "da7c62ceae207dd37ea5b845da6a0696c799f85e97da1ab5b7910be3c1c80223"
+
+[[package]]
+name = "figleter"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "04e0769e6cf86e246a3eee5b84b9e9b1abb9bca8b4161136f03ce752dac15ea9"
 
 [[package]]
 name = "find-msvc-tools"
@@ -1131,6 +1139,16 @@ dependencies = [
  "fastrand",
  "getrandom 0.4.3",
  "once_cell",
+ "rustix",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "terminal_size"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "230a1b821ccbd75b185820a1f1ff7b14d21da1e442e22c0863ea5f08771a8874"
+dependencies = [
  "rustix",
  "windows-sys 0.61.2",
 ]

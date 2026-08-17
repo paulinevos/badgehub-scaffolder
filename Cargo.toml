@@ -21,12 +21,18 @@ path = "src/main.rs"
 [dependencies]
 anyhow = "1.0.104"
 clap = { version = "4.6.6", features = ["derive"] }
+# FIGlet for the `bh new` wordmark. Chosen over figlet-rs, which drags in zip
+# to read compressed fonts we do not use, and over rusty-figlet, whose twelve
+# "bundled" fonts are all placeholder stubs that render one letter per line.
+figleter = "0.2.2"
 inquire = "0.9.4"
 regex = "1.13.1"
 serde = { version = "1.0.229", features = ["derive"] }
 # preserve_order keeps the keys of an edited metadata.json where the user left
 # them; without it every `bh set` would silently sort the whole file.
 serde_json = { version = "1.0.151", features = ["preserve_order"] }
+# So the wordmark can be skipped rather than wrapped on a narrow terminal.
+terminal_size = "0.4.4"
 ureq = "3.4.0"
 
 [dev-dependencies]
