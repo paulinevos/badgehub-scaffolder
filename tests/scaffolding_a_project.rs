@@ -149,6 +149,24 @@ fn a_run_with_every_flag_needs_no_terminal() {
     assert!(run.root().join(".git").exists());
 }
 
+/// The wordmark is for a person at a terminal. Here stdin is a pipe, so every
+/// stream has to come out as it did before there was a banner at all.
+#[test]
+fn the_wordmark_never_reaches_a_pipe() {
+    let run = Run::new();
+
+    let outcome = run.scaffold(&[]);
+
+    let reported = String::from_utf8(outcome.stdout.clone()).unwrap();
+    assert!(!reported.contains("__"), "{reported}");
+    assert!(
+        !complaint(&outcome).contains("__"),
+        "{}",
+        complaint(&outcome)
+    );
+    assert_eq!(1, reported.lines().count(), "{reported}");
+}
+
 #[test]
 fn what_was_answered_reaches_the_store_listing() {
     let run = Run::new();

@@ -4,6 +4,8 @@ use std::io::{IsTerminal, stdin};
 use anyhow::{Context, Result, bail};
 use inquire::{Confirm, MultiSelect, Password, Select, Text as TextPrompt};
 
+use crate::banner::Wordmark;
+
 /// Asks only for what the flags left unanswered. When there is no terminal —
 /// a CI run, a pipe — an unanswered field is an error naming the flag that
 /// would have supplied it, rather than a prompt nobody can see.
@@ -16,6 +18,16 @@ impl Wizard {
         Self {
             interactive: stdin().is_terminal(),
         }
+    }
+
+    /// The one flourish, before the first question. There is nobody to show it
+    /// to when the answers are coming from flags or a pipe, and a banner in a
+    /// script's output is noise the caller has to strip back out.
+    pub fn greet_with(&self, word: &str) {
+        if !self.interactive {
+            return;
+        }
+        Wordmark::of(word).greet();
     }
 
     pub fn text(&self, label: &str, flag: &str, given: Option<String>) -> Result<String> {
