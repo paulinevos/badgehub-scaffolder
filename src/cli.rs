@@ -1,7 +1,8 @@
 use std::env::current_dir;
+use std::fs::create_dir_all;
 use std::path::PathBuf;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{Args, Parser, Subcommand};
 
 use crate::answers::{NewProject, ProjectType, Text};
@@ -9,7 +10,7 @@ use crate::catalogue::{Catalogue, Choices};
 use crate::existing_project::ExistingProject;
 use crate::release_action::what_is_left_to_do;
 use crate::repository::RepositoryOptions;
-use crate::scaffold::Scaffold;
+use crate::scaffold::{Scaffold, refuse_unless_empty};
 use crate::set::{self, Changes};
 use crate::settings::{ConfigPath, Settings};
 use crate::slug::Slug;
@@ -32,7 +33,7 @@ pub struct Cli {
 enum Command {
     /// Scaffold a new BadgeHub project
     New(NewOptions),
-    /// Change the name, author, description or licence of a project
+    /// Change the name, author or description of a project
     Set(SetOptions),
     /// Add the BadgeHub release workflow to an existing project
     ReleaseAction(ReleaseActionOptions),
@@ -53,9 +54,6 @@ impl Cli {
 
 #[derive(Args)]
 pub struct SetOptions {
-    /// The project to change; defaults to looking in the current directory
-    #[arg(long)]
-    app_directory: Option<PathBuf>,
     #[command(flatten)]
     changes: Changes,
 }
@@ -72,6 +70,10 @@ pub struct ReleaseActionOptions {
 
 #[derive(Args)]
 pub struct NewOptions {
+    /// Where to scaffold; created if it is not there yet, and must be empty.
+    /// Defaults to the current directory.
+    #[arg(value_name = "DIR")]
+    directory: Option<PathBuf>,
     /// Project slug, e.g. org.fri3d.hwtest
     #[arg(long)]
     slug: Option<String>,
@@ -117,6 +119,7 @@ impl NewOptions {
         settings: &Settings,
     ) -> Result<NewProject> {
         let NewOptions {
+            directory: _,
             slug,
             name,
             description,
@@ -169,17 +172,34 @@ impl NewOptions {
     }
 }
 
-fn scaffold(options: NewOptions, wizard: &Wizard) -> Result<()> {
+fn scaffold(mut options: NewOptions, wizard: &Wizard) -> Result<()> {
     let settings = Settings::of_this_user()?;
+    // Settled before a single question is asked, so a directory that cannot be
+    // scaffolded into is not discovered at the end of a wizard.
+    let directory = made_ready(options.directory.take())?;
     let project = options.answer(wizard, &Catalogue::load(), &settings)?;
-    let scaffold = Scaffold::beside(&current_dir()?, &project)?;
+    let scaffold = Scaffold::here(&directory, &project)?;
     let root = scaffold.write_out(&project)?;
     println!("Scaffolded {}", root.display());
     Ok(())
 }
 
+/// A named directory is made if it is not there yet. Relative names are read
+/// from where you are standing; an absolute one is taken as it is.
+fn made_ready(given: Option<PathBuf>) -> Result<PathBuf> {
+    let here = current_dir()?;
+    let Some(given) = given else {
+        refuse_unless_empty(&here)?;
+        return Ok(here);
+    };
+    let directory = here.join(given);
+    create_dir_all(&directory).with_context(|| format!("creating {}", directory.display()))?;
+    refuse_unless_empty(&directory)?;
+    Ok(directory)
+}
+
 fn amend(options: SetOptions, wizard: &Wizard) -> Result<()> {
-    let project = found(options.app_directory)?;
+    let project = found(None)?;
     set::apply(options.changes, &project, wizard)
 }
 

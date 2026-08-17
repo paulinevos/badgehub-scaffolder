@@ -50,8 +50,9 @@ impl Scaffolded {
         scaffolded
     }
 
+    /// `bh new` scaffolds in place, so the working directory is the root.
     fn root(&self) -> PathBuf {
-        self.work.path().join(SLUG)
+        self.work.path().to_path_buf()
     }
 
     fn run(&self, arguments: &[&str]) -> Output {
@@ -78,10 +79,6 @@ impl Scaffolded {
 
     fn manifest(&self) -> Value {
         read_json(&self.root().join(SLUG).join("MANIFEST.JSON"))
-    }
-
-    fn license(&self) -> String {
-        read_to_string(self.root().join("LICENSE")).unwrap()
     }
 
     fn workflow(&self) -> PathBuf {
@@ -172,26 +169,6 @@ fn it_can_be_run_from_inside_the_app_directory_too() {
 }
 
 #[test]
-fn a_named_app_directory_is_used_as_given() {
-    let project = Scaffolded::new(&[]);
-    let elsewhere = TempDir::new().unwrap();
-
-    let outcome = project.run_in(
-        elsewhere.path(),
-        &[
-            "set",
-            "--app-directory",
-            project.root().to_str().unwrap(),
-            "--name",
-            "Hardware Test",
-        ],
-    );
-
-    assert!(outcome.status.success(), "{}", complaint(&outcome));
-    assert_eq!("Hardware Test", project.metadata()["name"]);
-}
-
-#[test]
 fn outside_a_project_it_says_there_is_nothing_here() {
     let project = Scaffolded::new(&[]);
     let empty = TempDir::new().unwrap();
@@ -220,40 +197,9 @@ fn with_no_flags_and_no_terminal_it_names_the_flags_rather_than_hanging() {
     let outcome = project.run(&["set"]);
 
     assert!(!outcome.status.success());
-    assert!(
-        complaint(&outcome).contains("--name"),
-        "{}",
-        complaint(&outcome)
-    );
-}
-
-#[test]
-fn a_new_licence_rewrites_an_untouched_stub() {
-    let project = Scaffolded::new(&[]);
-
-    let outcome = project.run(&["set", "--license", "Apache-2.0"]);
-
-    assert!(outcome.status.success(), "{}", complaint(&outcome));
-    assert_eq!("Apache-2.0", project.metadata()["license_type"]);
-    assert_eq!("LICENSE", project.metadata()["license_file"]);
-    assert!(project.license().starts_with("Apache-2.0"));
-}
-
-#[test]
-fn a_licence_file_someone_has_written_is_left_alone_and_said_so() {
-    let project = Scaffolded::new(&[]);
-    write(
-        project.root().join("LICENSE"),
-        "MIT\n\nCopyright 2026 Pauline Vos\n",
-    )
-    .unwrap();
-
-    let outcome = project.run(&["set", "--license", "Apache-2.0"]);
-
-    assert!(outcome.status.success(), "{}", complaint(&outcome));
-    assert_eq!("Apache-2.0", project.metadata()["license_type"]);
-    assert!(project.license().contains("Copyright 2026 Pauline Vos"));
-    assert!(spoken(&outcome).contains("LICENSE has been edited"));
+    let said = complaint(&outcome);
+    assert!(said.contains("--name"), "{said}");
+    assert!(!said.contains("--license"), "{said}");
 }
 
 #[test]

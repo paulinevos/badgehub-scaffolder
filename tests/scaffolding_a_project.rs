@@ -3,7 +3,7 @@
 //! here touches the real BadgeHub, GitHub, or the machine's own config.
 
 use std::fs::{create_dir_all, read_to_string, write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Output;
 
 use assert_cmd::Command;
@@ -70,8 +70,14 @@ impl Run {
     }
 
     fn scaffold(&self, extra: &[&str]) -> Output {
-        let mut arguments = vec![
-            "new",
+        self.scaffold_into(&[], extra)
+    }
+
+    /// The directory is positional, so it has to lead the flags.
+    fn scaffold_into(&self, directory: &[&str], extra: &[&str]) -> Output {
+        let mut arguments = vec!["new"];
+        arguments.extend_from_slice(directory);
+        arguments.extend_from_slice(&[
             "--slug",
             SLUG,
             "--name",
@@ -86,24 +92,30 @@ impl Run {
             "Utility",
             "--badge",
             "fri3d_2026",
-        ];
+        ]);
         arguments.extend_from_slice(extra);
         self.run(&arguments)
     }
 
+    /// The project root is now the working directory itself: `bh new`
+    /// scaffolds in place rather than making a directory to hold it.
     fn root(&self) -> &Path {
         self.work.path()
     }
 
+    fn app(&self) -> PathBuf {
+        self.root().join(SLUG)
+    }
+
     fn metadata(&self) -> Value {
-        let path = self.root().join(SLUG).join(SLUG).join("metadata.json");
+        let path = self.app().join("metadata.json");
         serde_json::from_str(&read_to_string(path).unwrap()).unwrap()
     }
 
     fn remotes(&self) -> String {
         let shown = std::process::Command::new("git")
             .arg("-C")
-            .arg(self.root().join(SLUG))
+            .arg(self.root())
             .args(["remote", "-v"])
             .output()
             .unwrap();
@@ -131,15 +143,9 @@ fn a_run_with_every_flag_needs_no_terminal() {
     let outcome = run.scaffold(&[]);
 
     assert!(outcome.status.success(), "{}", complaint(&outcome));
-    assert!(
-        run.root()
-            .join(SLUG)
-            .join(SLUG)
-            .join("__init__.py")
-            .exists()
-    );
-    assert!(run.root().join(SLUG).join("README.md").exists());
-    assert!(run.root().join(SLUG).join(".git").exists());
+    assert!(run.app().join("__init__.py").exists());
+    assert!(run.root().join("README.md").exists());
+    assert!(run.root().join(".git").exists());
 }
 
 #[test]
@@ -187,7 +193,7 @@ fn saved_defaults_answer_the_questions_the_flags_left_out() {
     let metadata = run.metadata();
     assert_eq!("Pauline Vos", metadata["author"]);
     assert_eq!("MIT", metadata["license_type"]);
-    assert!(run.root().join(SLUG).join("LICENSE").exists());
+    assert!(run.root().join("LICENSE").exists());
 }
 
 #[test]
@@ -230,7 +236,7 @@ fn a_malformed_repository_url_is_refused_before_anything_is_written() {
 
     assert!(!outcome.status.success());
     assert!(complaint(&outcome).contains("is not a repository URL"));
-    assert!(!run.root().join(SLUG).exists());
+    assert!(!run.app().exists());
 }
 
 #[test]
@@ -366,7 +372,7 @@ fn a_refused_creation_leaves_no_half_made_project_behind() {
 
     assert!(!outcome.status.success());
     assert!(complaint(&outcome).contains("already has a repository"));
-    assert!(!run.root().join(SLUG).exists());
+    assert!(!run.app().exists());
 }
 
 #[test]
@@ -484,7 +490,11 @@ fn scaffolding_twice_in_one_place_is_refused() {
     let second = run.scaffold(&[]);
 
     assert!(!second.status.success());
-    assert!(complaint(&second).contains("already exists"));
+    assert!(
+        complaint(&second).contains("not empty"),
+        "{}",
+        complaint(&second)
+    );
 }
 
 #[test]
@@ -509,4 +519,111 @@ fn saving_defaults_leaves_a_config_only_its_owner_can_read() {
     let saved = run.home.path().join("badgehub").join("config.json");
     let mode = saved.metadata().unwrap().permissions().mode();
     assert_eq!(0o600, mode & 0o777);
+}
+
+#[test]
+fn it_scaffolds_into_the_directory_you_are_standing_in() {
+    let run = Run::new();
+
+    run.scaffold(&[]);
+
+    // Not a directory named for the slug holding another one: the working
+    // directory is the project root, and the slug names only the app directory.
+    assert!(run.app().join("metadata.json").is_file());
+    assert!(!run.app().join(SLUG).exists());
+}
+
+#[test]
+fn a_directory_holding_anything_at_all_is_refused() {
+    let run = Run::new();
+    write(run.root().join("notes.txt"), "mine\n").unwrap();
+
+    let outcome = run.scaffold(&[]);
+
+    assert!(!outcome.status.success());
+    assert!(
+        complaint(&outcome).contains("not empty"),
+        "{}",
+        complaint(&outcome)
+    );
+    assert!(!run.app().exists());
+}
+
+/// The files GitHub starts a repository with are the likeliest accident, and
+/// they are refused like anything else.
+#[test]
+fn a_directory_holding_only_a_readme_is_refused_too() {
+    let run = Run::new();
+    write(run.root().join("README.md"), "# demo\n").unwrap();
+
+    let outcome = run.scaffold(&[]);
+
+    assert!(!outcome.status.success());
+    assert!(
+        complaint(&outcome).contains("README.md"),
+        "{}",
+        complaint(&outcome)
+    );
+}
+
+#[test]
+fn a_named_directory_is_made_and_scaffolded_into() {
+    let run = Run::new();
+
+    let outcome = run.scaffold_into(&["hwtest"], &[]);
+
+    assert!(outcome.status.success(), "{}", complaint(&outcome));
+    assert!(
+        run.root()
+            .join("hwtest")
+            .join(SLUG)
+            .join("metadata.json")
+            .is_file()
+    );
+    assert!(run.root().join("hwtest").join("README.md").is_file());
+}
+
+#[test]
+fn a_named_directory_may_be_nested_and_is_made_all_the_way_down() {
+    let run = Run::new();
+
+    let outcome = run.scaffold_into(&["projects/badges/hwtest"], &[]);
+
+    assert!(outcome.status.success(), "{}", complaint(&outcome));
+    assert!(
+        run.root()
+            .join("projects/badges/hwtest")
+            .join(SLUG)
+            .join("metadata.json")
+            .is_file()
+    );
+}
+
+#[test]
+fn an_absolute_directory_is_taken_as_it_is() {
+    let run = Run::new();
+    let elsewhere = TempDir::new().unwrap();
+    let named = elsewhere.path().join("hwtest");
+
+    let outcome = run.scaffold_into(&[named.to_str().unwrap()], &[]);
+
+    assert!(outcome.status.success(), "{}", complaint(&outcome));
+    assert!(named.join(SLUG).join("metadata.json").is_file());
+    assert!(!run.root().join(SLUG).exists());
+}
+
+#[test]
+fn a_named_directory_that_is_not_empty_is_refused_too() {
+    let run = Run::new();
+    create_dir_all(run.root().join("hwtest")).unwrap();
+    write(run.root().join("hwtest").join("notes.txt"), "mine\n").unwrap();
+
+    let outcome = run.scaffold_into(&["hwtest"], &[]);
+
+    assert!(!outcome.status.success());
+    assert!(
+        complaint(&outcome).contains("not empty"),
+        "{}",
+        complaint(&outcome)
+    );
 }

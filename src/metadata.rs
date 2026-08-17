@@ -61,12 +61,9 @@ impl Metadata {
             ("name", &changes.name),
             ("author", &changes.author),
             ("description", &changes.description),
-            ("license_type", &changes.license),
         ] {
             let Some(value) = given else { continue };
             document.set(key, value);
         }
-        let Some(_) = &changes.license else { return };
-        document.set("license_file", "LICENSE");
     }
 }

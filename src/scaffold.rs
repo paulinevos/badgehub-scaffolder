@@ -1,4 +1,4 @@
-use std::fs::{create_dir_all, write};
+use std::fs::{create_dir_all, read_dir, write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -20,14 +20,14 @@ pub struct Scaffold {
 }
 
 impl Scaffold {
-    pub fn beside(working_directory: &Path, project: &NewProject) -> Result<Self> {
-        let root = working_directory.join(project.slug.to_string());
-        if root.exists() {
-            bail!("{} already exists", root.display());
-        }
-        let app_directory = root.join(project.slug.to_string());
+    /// Scaffolds into the given directory itself, rather than making one to
+    /// hold it. That directory has to be empty: a project laid over anything
+    /// already there would be two things sharing a root.
+    pub fn here(directory: &Path, project: &NewProject) -> Result<Self> {
+        refuse_unless_empty(directory)?;
+        let app_directory = directory.join(project.slug.to_string());
         Ok(Self {
-            root,
+            root: directory.to_owned(),
             app_directory,
         })
     }
@@ -133,6 +133,31 @@ impl<'a> Git<'a> {
     }
 }
 
+/// An empty directory only. Refusing beforehand beats writing half a project
+/// over whatever was already living here.
+pub fn refuse_unless_empty(directory: &Path) -> Result<()> {
+    let occupied = occupants(directory)?;
+    if occupied.is_empty() {
+        return Ok(());
+    }
+    bail!(
+        "{} is not empty: it holds {}. Scaffold into an empty directory.",
+        directory.display(),
+        occupied.join(", ")
+    )
+}
+
+fn occupants(directory: &Path) -> Result<Vec<String>> {
+    let listing =
+        read_dir(directory).with_context(|| format!("reading {}", directory.display()))?;
+    let mut found: Vec<String> = listing
+        .filter_map(Result::ok)
+        .filter_map(|entry| entry.file_name().into_string().ok())
+        .collect();
+    found.sort();
+    Ok(found)
+}
+
 fn entrypoint_source(project: &NewProject) -> String {
     format!(
         "class {class_name}:\n    \"\"\"{description}\"\"\"\n\n    \
@@ -141,4 +166,75 @@ fn entrypoint_source(project: &NewProject) -> String {
         description = project.description,
         name = project.name,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs::{create_dir, write};
+
+    use tempfile::TempDir;
+
+    use super::{occupants, refuse_unless_empty};
+
+    #[test]
+    fn an_empty_directory_is_what_this_wants() {
+        let kept = TempDir::new().unwrap();
+
+        assert!(refuse_unless_empty(kept.path()).is_ok());
+    }
+
+    #[test]
+    fn a_file_someone_else_put_there_is_refused() {
+        let kept = TempDir::new().unwrap();
+        write(kept.path().join("notes.txt"), "mine\n").unwrap();
+
+        let refused = refuse_unless_empty(kept.path()).unwrap_err().to_string();
+
+        assert!(refused.contains("not empty"), "{refused}");
+        assert!(refused.contains("notes.txt"), "{refused}");
+    }
+
+    /// Not even a git directory earns an exception.
+    #[test]
+    fn a_directory_that_is_already_a_repository_is_refused() {
+        let kept = TempDir::new().unwrap();
+        create_dir(kept.path().join(".git")).unwrap();
+
+        let refused = refuse_unless_empty(kept.path()).unwrap_err().to_string();
+
+        assert!(refused.contains(".git"), "{refused}");
+    }
+
+    #[test]
+    fn the_files_github_starts_a_repository_with_are_refused_too() {
+        let kept = TempDir::new().unwrap();
+        write(kept.path().join("README.md"), "# demo\n").unwrap();
+        write(kept.path().join("LICENSE"), "MIT\n").unwrap();
+        write(kept.path().join(".gitignore"), "*.pyc\n").unwrap();
+
+        let refused = refuse_unless_empty(kept.path()).unwrap_err().to_string();
+
+        assert!(refused.contains("README.md"), "{refused}");
+        assert!(refused.contains("LICENSE"), "{refused}");
+        assert!(refused.contains(".gitignore"), "{refused}");
+    }
+
+    #[test]
+    fn a_project_scaffolded_here_already_is_in_the_way() {
+        let kept = TempDir::new().unwrap();
+        create_dir(kept.path().join("org.fri3d.hwtest")).unwrap();
+
+        let refused = refuse_unless_empty(kept.path()).unwrap_err().to_string();
+
+        assert!(refused.contains("org.fri3d.hwtest"), "{refused}");
+    }
+
+    #[test]
+    fn what_is_in_the_way_is_listed_in_a_settled_order() {
+        let kept = TempDir::new().unwrap();
+        write(kept.path().join("zebra"), "").unwrap();
+        write(kept.path().join("apple"), "").unwrap();
+
+        assert_eq!(vec!["apple", "zebra"], occupants(kept.path()).unwrap());
+    }
 }

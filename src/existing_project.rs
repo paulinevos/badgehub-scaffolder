@@ -4,7 +4,6 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail};
 
 use crate::json_document::JsonDocument;
-use crate::license::LicenseFile;
 use crate::release_action::ReleaseWorkflow;
 use crate::slug::Slug;
 
@@ -73,10 +72,6 @@ impl ExistingProject {
 
     pub fn manifest(&self) -> Result<JsonDocument> {
         JsonDocument::read(&self.app_directory.join(MANIFEST))
-    }
-
-    pub fn license(&self) -> LicenseFile {
-        LicenseFile::at(self.root.join("LICENSE"))
     }
 
     pub fn add_release_workflow(&self, force: bool) -> Result<PathBuf> {
