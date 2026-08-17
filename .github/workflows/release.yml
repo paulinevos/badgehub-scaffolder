@@ -1,0 +1,161 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            os: macos-latest
+          - target: x86_64-apple-darwin
+            os: macos-latest
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          # No aarch64 Linux runner in the matrix, so this one is built in a
+          # cross container with the matching toolchain and sysroot.
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            cross: true
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - uses: taiki-e/install-action@v2
+        if: matrix.cross
+        with:
+          tool: cross
+
+      - name: Build
+        run: |
+          "${CARGO}" build --release --locked --target "${TARGET}"
+        env:
+          CARGO: ${{ matrix.cross && 'cross' || 'cargo' }}
+          TARGET: ${{ matrix.target }}
+
+      - name: Package
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          archive="bh-${version}-${TARGET}.tar.gz"
+          tar --create --gzip --file "${archive}" \
+            --directory "target/${TARGET}/release" bh
+        env:
+          TARGET: ${{ matrix.target }}
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: bh-${{ matrix.target }}
+          path: "*.tar.gz"
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Checksum
+        run: |
+          cd artifacts
+          sha256sum ./*.tar.gz > SHA256SUMS
+
+      - uses: softprops/action-gh-release@v3
+        with:
+          files: artifacts/*
+          fail_on_unmatched_files: true
+
+  tap:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      # A push to another repository cannot use GITHUB_TOKEN, whose reach stops
+      # at this one.
+      - uses: actions/checkout@v7
+        with:
+          repository: paulinevos/homebrew-tap
+          token: ${{ secrets.TAP_TOKEN }}
+          path: tap
+
+      - name: Rewrite the formula
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
+          checksum() {
+            sha256sum "artifacts/bh-${version}-$1.tar.gz" | cut -d " " -f 1
+          }
+          cat > tap/Formula/badgehub.rb <<FORMULA
+          # This file is written by the badgehub-scaffolder release workflow.
+          class Badgehub < Formula
+            desc "Scaffold and manage BadgeHub apps for event badges"
+            homepage "https://github.com/paulinevos/badgehub-scaffolder"
+            version "${version}"
+            license "MIT"
+
+            on_macos do
+              on_arm do
+                url "${base}/bh-${version}-aarch64-apple-darwin.tar.gz"
+                sha256 "$(checksum aarch64-apple-darwin)"
+              end
+
+              on_intel do
+                url "${base}/bh-${version}-x86_64-apple-darwin.tar.gz"
+                sha256 "$(checksum x86_64-apple-darwin)"
+              end
+            end
+
+            on_linux do
+              on_arm do
+                url "${base}/bh-${version}-aarch64-unknown-linux-gnu.tar.gz"
+                sha256 "$(checksum aarch64-unknown-linux-gnu)"
+              end
+
+              on_intel do
+                url "${base}/bh-${version}-x86_64-unknown-linux-gnu.tar.gz"
+                sha256 "$(checksum x86_64-unknown-linux-gnu)"
+              end
+            end
+
+            def install
+              bin.install "bh"
+            end
+
+            test do
+              assert_match "Usage: bh", shell_output("#{bin}/bh --help")
+              assert_match version.to_s, shell_output("#{bin}/bh --version")
+            end
+          end
+          FORMULA
+
+      - uses: peter-evans/create-pull-request@v8
+        with:
+          path: tap
+          token: ${{ secrets.TAP_TOKEN }}
+          branch: badgehub-${{ github.ref_name }}
+          commit-message: "badgehub ${{ github.ref_name }}"
+          title: "badgehub ${{ github.ref_name }}"
+          body: "Formula update for ${{ github.repository }} ${{ github.ref_name }}."

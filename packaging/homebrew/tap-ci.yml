@@ -1,0 +1,27 @@
+name: ci
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  formula:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # The tap has to sit where brew looks for taps before
+      # paulinevos/tap/badgehub resolves by name.
+      - name: Tap this checkout
+        run: |
+          tap="$(brew --repository paulinevos/tap)"
+          mkdir -p "$(dirname "${tap}")"
+          cp -R "${GITHUB_WORKSPACE}" "${tap}"
+
+      - run: brew audit --strict paulinevos/tap/badgehub
+
+      - run: brew install paulinevos/tap/badgehub
+
+      - run: brew test paulinevos/tap/badgehub
