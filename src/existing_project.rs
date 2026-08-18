@@ -1,4 +1,4 @@
-use std::fs::read_dir;
+use std::fs::{create_dir_all, read_dir};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
@@ -29,7 +29,7 @@ impl ExistingProject {
         let here = directory
             .canonicalize()
             .with_context(|| format!("looking for a project in {}", directory.display()))?;
-        if here.join(METADATA).exists() {
+        if holds_an_app(&here) {
             return Self::rooted_at(parent_of(&here)?, &here);
         }
         Self::found_below(&here)
@@ -39,7 +39,7 @@ impl ExistingProject {
         let candidates = app_directories_in(root)?;
         match candidates.as_slice() {
             [] => bail!(
-                "no BadgeHub project in {}: expected a {METADATA} here or in a \
+                "no BadgeHub project in {}: expected a {MANIFEST} here or in a \
                  directory below it",
                 root.display()
             ),
@@ -78,16 +78,33 @@ impl ExistingProject {
 
     /// Built beside the app directory by default, and kept out of the
     /// repository: an .mpk is an artefact of the source next to it.
-    pub fn bundle_into(&self, output_directory: Option<PathBuf>) -> Result<(PathBuf, Added)> {
+    pub fn bundle_into(
+        &self,
+        output_directory: Option<PathBuf>,
+        leave_gitignore_alone: bool,
+    ) -> Result<(PathBuf, Added)> {
         let mpk = Mpk::of(&self.app_directory, &self.manifest()?)?;
         let directory = output_directory.unwrap_or_else(|| self.root.clone());
+        create_dir_all(&directory).with_context(|| format!("creating {}", directory.display()))?;
         let written = mpk.write_into(&directory)?;
+        if leave_gitignore_alone {
+            return Ok((written, Added::AlreadyThere));
+        }
         Ok((written, Gitignore::at(&self.root).ensure("*.mpk")?))
     }
 
     pub fn add_release_workflow(&self, force: bool) -> Result<PathBuf> {
         ReleaseWorkflow::releasing(&self.slug).write_into(&self.root, force)
     }
+}
+
+/// Either file marks an app directory. MANIFEST.JSON is the one MicroPythonOS
+/// insists on, and an app can be bundled without ever having been listed on
+/// BadgeHub; metadata.json alone is enough for a project mid-scaffold.
+fn holds_an_app(directory: &Path) -> bool {
+    [MANIFEST, METADATA]
+        .iter()
+        .any(|name| directory.join(name).is_file())
 }
 
 fn parent_of(app_directory: &Path) -> Result<PathBuf> {
@@ -102,7 +119,7 @@ fn app_directories_in(root: &Path) -> Result<Vec<PathBuf>> {
     let mut found: Vec<PathBuf> = listing
         .filter_map(Result::ok)
         .map(|entry| entry.path())
-        .filter(|path| path.join(METADATA).is_file())
+        .filter(|path| holds_an_app(path))
         .collect();
     found.sort();
     Ok(found)
@@ -159,6 +176,24 @@ mod tests {
         let project = ExistingProject::found_at(&kept.path().join("org.fri3d.hwtest")).unwrap();
 
         assert!(project.metadata().is_ok());
+    }
+
+    /// The release action bundles apps that were never listed on BadgeHub, so
+    /// the manifest alone has to be enough to find one.
+    #[test]
+    fn found_from_a_manifest_without_a_store_listing() {
+        let kept = TempDir::new().unwrap();
+        let app = kept.path().join("org.fri3d.hwtest");
+        create_dir_all(&app).unwrap();
+        write(
+            app.join("MANIFEST.JSON"),
+            r#"{"fullname": "org.fri3d.hwtest"}"#,
+        )
+        .unwrap();
+
+        let project = ExistingProject::found_at(&app).unwrap();
+
+        assert!(project.manifest().is_ok());
     }
 
     #[test]

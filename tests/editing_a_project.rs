@@ -409,3 +409,29 @@ fn names_in(archive: &std::path::Path) -> Vec<String> {
         .map(|index| zip.by_index(index).unwrap().name().to_owned())
         .collect()
 }
+
+#[test]
+fn an_output_directory_that_is_not_there_yet_is_made() {
+    let project = Scaffolded::new(&[]);
+    let elsewhere = TempDir::new().unwrap();
+    let nested = elsewhere.path().join("dist/archives");
+
+    let outcome = project.run(&["bundle", "--output-directory", nested.to_str().unwrap()]);
+
+    assert!(outcome.status.success(), "{}", complaint(&outcome));
+    assert!(nested.join(format!("{SLUG}_0.1.0.mpk")).is_file());
+}
+
+#[test]
+fn a_build_can_leave_the_gitignore_alone() {
+    let project = Scaffolded::new(&[]);
+    write(project.root().join(".gitignore"), "__pycache__/\n").unwrap();
+
+    let outcome = project.run(&["bundle", "--no-gitignore"]);
+
+    assert!(outcome.status.success(), "{}", complaint(&outcome));
+    assert_eq!(
+        "__pycache__/\n",
+        read_to_string(project.root().join(".gitignore")).unwrap()
+    );
+}

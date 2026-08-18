@@ -70,6 +70,9 @@ pub struct BundleOptions {
     /// Where to write the .mpk; defaults to the project root
     #[arg(long)]
     output_directory: Option<PathBuf>,
+    /// Leave .gitignore alone; for CI, which has nothing to keep out of a commit
+    #[arg(long)]
+    no_gitignore: bool,
 }
 
 #[derive(Args)]
@@ -220,7 +223,7 @@ fn amend(options: SetOptions, wizard: &Wizard) -> Result<()> {
 
 fn bundle(options: BundleOptions) -> Result<()> {
     let project = found(options.app_directory)?;
-    let (written, ignored) = project.bundle_into(options.output_directory)?;
+    let (written, ignored) = project.bundle_into(options.output_directory, options.no_gitignore)?;
     println!("Built {}", written.display());
     if ignored == Added::Yes {
         println!("Added *.mpk to .gitignore.");

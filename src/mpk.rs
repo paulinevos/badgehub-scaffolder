@@ -300,6 +300,18 @@ mod tests {
         assert!(!names_in(&written).iter().any(|name| name.ends_with(".mpk")));
     }
 
+    /// A store listing is not needed to build the archive the badge installs.
+    #[test]
+    fn an_app_without_a_store_listing_still_bundles() {
+        let kept = TempDir::new().unwrap();
+        let app = app_directory_in(&kept, "nl.paulinevos.demo");
+        std::fs::remove_file(app.join("metadata.json")).unwrap();
+
+        let written = mpk_of(&app).write_into(kept.path()).unwrap();
+
+        assert!(names_in(&written).contains(&"nl.paulinevos.demo/MANIFEST.JSON".to_owned()));
+    }
+
     #[test]
     fn what_goes_in_comes_back_out_unchanged() {
         let kept = TempDir::new().unwrap();
